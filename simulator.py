@@ -7,13 +7,17 @@ import plotly.figure_factory as ff
 import pandas as pd
 import plotly.express as px
 
+#user inputs
 
 Lambda = 2.25
 mew = 8.98
-#lb for gamma
-#ub for gamma
-#mean for normal
-#std for normal
+st1 = 4 #lb for gg service
+st2 = 7 #ub for gg service
+#mean for gg ia normal
+sigma = 1.5 #sigma for gg ia normal
+c = 1
+
+
 A = 55
 M = 1994
 Z0 = 10112166
@@ -27,9 +31,9 @@ def CP(Lambda):
     total = 0
     num_of_cust = 0
     while total != 1:
-        total = 0
+        total = 0 
         for x in range (0, i):
-            temp = ((Lambda**x)*(math.e**-Lambda))/math.factorial(x)
+            temp = (Lambda**x) * math.exp(-Lambda) / math.factorial(x)
             total += temp
         array.append(total)
         i+=1
@@ -41,7 +45,7 @@ def CPlookUp(Lambda, num_of_cust):
     for i in range (0, num_of_cust):
         total = 0
         for x in range (0, i):
-            temp = ((Lambda**x)*(math.e**-Lambda))/math.factorial(x)
+            temp = (Lambda**x) * math.exp(-Lambda) / math.factorial(x)
             total += temp
         array.append(total)
     return array
@@ -64,10 +68,10 @@ def IAMG(CP, CPlo, num_of_cust):
                 IA.append(i)
     return IA
 
-def IAGG(CP, CPlo, num_of_cust, mean, std):
+def IAGG(CP, CPlo, num_of_cust, mew, sigma):
     IA = []
     while (len(IA)!=num_of_cust):
-        temp = np.random.normal(mean, std)
+        temp = np.random.normal(mew, sigma)
         for i in range (0, num_of_cust - 1):
             if (temp<CP[i] and temp>CPlo[i]):
                 IA.append(i)
@@ -80,24 +84,24 @@ def Arrivals(arrivals, IA, num_of_cust):
         temp += IA[i]
         arrivals.append(temp)
 
-def ServiceMM(num_of_cust):
+def ServiceMM(num_of_cust, mew):
     service = []
     for i in range (0, num_of_cust):
         temp = -mew * math.log(random.random())
         service.append(round(temp))
     return service
 
-def ServiceMG(num_of_cust, mean, std):
+def ServiceMG(num_of_cust, mew, sigma):
     service = []
     for i in range (0, num_of_cust):
-        temp = np.random.normal(mean, std)
+        temp = np.random.normal(mew, sigma)
         service.append(round(temp))
     return service
 
-def ServiceGG(num_of_cust, lb, ub):
+def ServiceGG(num_of_cust, st1, st2):
     service = []
     for i in range (0, num_of_cust):
-        temp = (random.random()-lb)/(ub-lb)
+        temp = (random.random()-st1)/(st2-st1)
         service.append(round(temp))
     return service
 
@@ -265,18 +269,21 @@ def plot_gantt_chart(starts, width, labels, df):
     )
     fig.show()
 
-def calculate_p0(rho):
-    summation = sum([(2*rho)**m/math.factorial(m)for m in range (2)])
-    p0= 1/(summation + ((2*rho)**2/math.factorial(2))*(1-rho))
-    return p0
 
-def mm2(Lambda, mew):
+def calculate_p0(rho, c):
+    numerator = (rho ** c) / math.factorial(c)
+    denominator = sum([(rho ** k) / math.factorial(k) for k in range(c)])
+    pzero = 1 / (numerator + denominator)
+    return pzero
+
+
+def mmc(Lambda, mew, c):
     arrival_rate = Lambda
     service_rate = mew
     
-    utilization = arrival_rate / service_rate
-    p0 = 1 / (1 + utilization)
-    lq = utilization**2 / (1 - utilization)
+    utilization = arrival_rate / (service_rate*c)
+    p0 = calculate_p0(utilization, c)
+    lq = p0*((Lambda/mew)**c)*utilization
     wq = lq / arrival_rate
     w = wq + (1/ service_rate)
     l = arrival_rate * w
@@ -289,20 +296,26 @@ def mm2(Lambda, mew):
         'Average waiting time in the system': w,
         'Average waiting time in the queue': wq
         }
-    return results
+    print(results)
 
-def mg2(Lambda, mew):
+def mgc(Lambda, mew, c):
     
     arrival_rate = Lambda
     service_rate = mew
-    mean_service_time = 1/mew
-    variance_service_time = pow(mew,2)
+    mean_arrival = 1/Lambda
+    mean_service = 1/mew
+    var_arrival = 1/Lambda**2
+    var_service = 1/mew**2
+
+    Ca2= var_arrival/((mean_arrival)**2)
+    Cs2= var_service/((mean_service)**2)
     
-    utilization = arrival_rate/(2*mean_service_time)
-    p0 = calculate_p0(utilization)
-    lq = (p0*utilization*(arrival_rate/mean_service_time)**2)/(2*(1-utilization)**2)
-    wq = lq / arrival_rate
-    w = wq +(1/mean_service_time)
+    utilization = arrival_rate / (service_rate*c)
+    p0 = calculate_p0(utilization, c)
+    lq = p0*((Lambda/mew)**c)*utilization
+    approx = (Ca2+Cs2)/2
+    wq = (lq / arrival_rate)*(approx)
+    w = wq + (1/ service_rate)
     l = arrival_rate * w
     
     results = {
@@ -312,24 +325,28 @@ def mg2(Lambda, mew):
         'Average number of customers in the queue': lq,
         'Average waiting time in the system': w,
         'Average waiting time in the queue': wq
-    }
-    return results
+        }
+    print(results)
 
-def gg2(mew, std, lb, ub):
-    mean_ia_times = 1/mew
-    mean_service_time = (lb+ub)/2
-    var_ia_time = pow(std,2)
-    var_service_time = ((ub - lb)**2) / 12
+def ggc(Lambda, st1, st2, c):
+    arrival_rate = Lambda
+    service_rate = mew
 
-    Ca2= var_ia_time/pow(mean_ia_times,2)
-    Cs2= var_service_time/pow(mean_service_time,2)
+    mean_arrival = 1/Lambda
+    mean_service = 1/((st1+st2)/2)
+    var_arrival = (1/mew)**2
+    var_service= ((st2 - st1)**2) / 12
 
-    utilization = mew / (1/mean_service_time)
-    p0 = calculate_p0(utilization)
-    lq = utilization**2 * (var_ia_time + var_service_time) / (2 * (1/mean_service_time)**2 * (1 - utilization)**2)
-    wq = lq / mew
-    w = wq + (mean_service_time)
-    l = mew * w
+    Ca2= var_arrival/(mean_arrival**2)
+    Cs2= var_service/(mean_service**2)
+
+    utilization = service_rate / (arrival_rate*c)
+    p0 = calculate_p0(utilization, c)
+    lq = p0*((Lambda/mew)**c)*utilization
+    approx = (Ca2+Cs2)/2
+    wq = (lq / arrival_rate)*(approx)
+    w = wq + (1/ service_rate)
+    l = arrival_rate * w
 
     results= {
         'Utilization': utilization,
@@ -340,26 +357,30 @@ def gg2(mew, std, lb, ub):
         'Average waiting time in the queue': wq
     }
     print(results)
-    return results
+    
 
 def main():
 
     arr1, num_of_cust = CP(Lambda)
     arr2 = CPlookUp(Lambda, num_of_cust)
     #IA = IAMM(arr1, arr2, num_of_cust)
-    IA = IAMG(arr1, arr2, num_of_cust)
+    #IA = IAMG(arr1, arr2, num_of_cust)
     #print(IA)
-    #IA = IAGG(arr1, arr2, num_of_cust, 5, 2)
+    IA = IAGG(arr1, arr2, num_of_cust, mew, sigma)
     arrivals = [0]
     Arrivals(arrivals, IA, num_of_cust)
     #print(Arrivals)
     IA.insert(0, 0)
-    #service = ServiceMM(num_of_cust)
-    service = ServiceMG(num_of_cust,5,2)
-    #service = ServiceGG(num_of_cust,5,3)
+    #service = ServiceMM(num_of_cust, mew)
+    #service = ServiceMG(num_of_cust, mew, sigma)
+    service = ServiceGG(num_of_cust, st1, st2)
     qeueing(num_of_cust, arrivals, service)
-    mg2=
-    #gg2(mew, 1, 5, 3)
+
+    #Possible prompts:
+
+    #mmc(Lambda, mew, c)
+    #mgc(Lambda, mew, c)
+    ggc(Lambda, st1, st2, c)
     #plt.show()
 
 
