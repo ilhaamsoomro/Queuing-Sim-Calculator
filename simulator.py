@@ -11,11 +11,11 @@ import plotly.express as px
 
 Lambda = 2.25
 mew = 8.98
-st1 = 4 #lb for gg service
-st2 = 7 #ub for gg service
+st1 = 7 #lb for gg service
+st2 = 5 #ub for gg service
 #mean for gg ia normal
 sigma = 1.5 #sigma for gg ia normal
-c = 1
+c = 2
 
 
 A = 55
@@ -68,10 +68,11 @@ def IAMG(CP, CPlo, num_of_cust):
                 IA.append(i)
     return IA
 
-def IAGG(CP, CPlo, num_of_cust, mew, sigma):
+def IAGG(CP, CPlo, num_of_cust, mew):
     IA = []
     while (len(IA)!=num_of_cust):
-        temp = np.random.normal(mew, sigma)
+        #temp = np.random.normal(mew, sigma)
+        temp = -mew * math.log(random.random())
         for i in range (0, num_of_cust - 1):
             if (temp<CP[i] and temp>CPlo[i]):
                 IA.append(i)
@@ -334,7 +335,7 @@ def ggc(Lambda, st1, st2, c):
 
     mean_arrival = 1/Lambda
     mean_service = 1/((st1+st2)/2)
-    var_arrival = (1/mew)**2
+    var_arrival = (1/Lambda)**2
     var_service= ((st2 - st1)**2) / 12
 
     Ca2= var_arrival/(mean_arrival**2)
@@ -366,7 +367,7 @@ def main():
     #IA = IAMM(arr1, arr2, num_of_cust)
     #IA = IAMG(arr1, arr2, num_of_cust)
     #print(IA)
-    IA = IAGG(arr1, arr2, num_of_cust, mew, sigma)
+    IA = IAGG(arr1, arr2, num_of_cust, mew)
     arrivals = [0]
     Arrivals(arrivals, IA, num_of_cust)
     #print(Arrivals)
